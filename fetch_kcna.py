@@ -1,16 +1,49 @@
 import requests
 from bs4 import BeautifulSoup
 import pandas as pd
-import time
+import random
+import os
 from datetime import datetime
 from tqdm import tqdm
 
+# Load the current headlines archive from S3
+archive_url = 'https://stilesdata.com/north-korea-news/headlines.json'
+current_archive = pd.read_json(archive_url, orient='records')
+
+# Convert date column in current archive to datetime
+current_archive['date'] = pd.to_datetime(current_archive['date'], errors='raise')
+
 today = pd.Timestamp.today().strftime('%Y-%m-%d')
-key_topics = ["WPK General Secretary Kim Jong Un's Revolutionary Activities", 'Latest News', 'Top News', 'Home News', 'World', 'Society-Life', 'External', 'News Commentary']
+key_topics = [
+    "WPK General Secretary Kim Jong Un's Revolutionary Activities",
+    'Latest News', 'Top News', 'Home News', 'World',
+    'Society-Life', 'External', 'News Commentary'
+]
+
+# Retrieve the proxy service key from environment variables (GitHub Actions secrets)
+proxy_service_key = os.getenv('SCRAPE_PROXY_KEY')
+
+# List of user-agents for rotation
+user_agents = [
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0.3 Safari/605.1.15',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Firefox/78.0',
+]
 
 # Function to fetch the menu links
 def fetch_menu_links(url):
-    response = requests.get(url)
+    headers = {
+        'User-Agent': random.choice(user_agents)
+    }
+    response = requests.get(
+        'https://proxy.scrapeops.io/v1/',
+        params={
+            'api_key': proxy_service_key,
+            'url': url,
+            'premium': 'true'  # Use premium proxies for faster and more reliable performance
+        },
+        headers=headers
+    )
     if response.status_code == 200:
         soup = BeautifulSoup(response.content, 'html.parser')
         menu_block = soup.find('div', class_='col-md-12 menu-block')
@@ -53,7 +86,18 @@ def convert_juche_to_gregorian(juche_date):
 
 # Function to parse articles and media from topic pages
 def parse_articles(page_url, topic):
-    response = requests.get(page_url)
+    headers = {
+        'User-Agent': random.choice(user_agents)
+    }
+    response = requests.get(
+        'https://proxy.scrapeops.io/v1/',
+        params={
+            'api_key': proxy_service_key,
+            'url': page_url,
+            'premium': 'true'  # Use premium proxies for faster and more reliable performance
+        },
+        headers=headers
+    )
     articles = []
     if response.status_code == 200:
         soup = BeautifulSoup(response.content, 'html.parser')
@@ -61,7 +105,7 @@ def parse_articles(page_url, topic):
         # Extract articles
         article_lists = soup.find_all('ul', class_='article-link')
         for article_list in article_lists:
-            article_links = article_list.find_all('li')
+            article_links = article_list.find_all('li')[:5]  # Limit to first 5 articles
             for article in article_links:
                 a_tag = article.find('a')
                 if a_tag:
@@ -80,7 +124,7 @@ def parse_articles(page_url, topic):
         # Extract photos and videos
         if topic in ['Photo', 'Video']:
             media_divs = soup.find_all('div', class_=['photo', 'video'])
-            for media in media_divs:
+            for media in media_divs[:5]:  # Limit to first 5 items
                 title_span = media.find('span', class_='title')
                 if title_span:
                     a_tag = title_span.find('a')
@@ -103,7 +147,18 @@ def parse_articles(page_url, topic):
 
 # Function to extract story text from article links
 def fetch_story_text(link):
-    response = requests.get(link)
+    headers = {
+        'User-Agent': random.choice(user_agents)
+    }
+    response = requests.get(
+        'https://proxy.scrapeops.io/v1/',
+        params={
+            'api_key': proxy_service_key,
+            'url': link,
+            'premium': 'true'  # Use premium proxies for faster and more reliable performance
+        },
+        headers=headers
+    )
     if response.status_code == 200:
         soup = BeautifulSoup(response.content, 'html.parser')
         content_wrapper = soup.find('div', class_='content-wrapper')
@@ -134,9 +189,6 @@ def collect_headlines_and_stories(links_df):
 
         all_articles.extend(articles)
 
-        # Respectful scraping: add delay between requests
-        time.sleep(3)  # Adjust the sleep time as needed
-
     return pd.DataFrame(all_articles)
 
 # Main workflow
@@ -144,9 +196,15 @@ menu_url = 'http://www.kcna.kp/en'  # Replace with the actual URL of the menu pa
 links_df = fetch_menu_links(menu_url)
 headlines_df = collect_headlines_and_stories(links_df)
 
-# Export links and headlines. Save a dated copy in an archive directory. 
-links_df.to_json('data/links.json', indent=4, orient='records')
-headlines_df.to_json('data/headlines.json', indent=4, orient='records')
+# Convert date column in headlines_df to datetime
+headlines_df['date'] = pd.to_datetime(headlines_df['date'], errors='raise')
 
-links_df.to_json(f'data/archive/links_{today}.json', indent=4, orient='records')
-headlines_df.to_json(f'data/archive/headlines_{today}.json', indent=4, orient='records')
+# Combine with current archive, remove duplicates, and sort by date
+all_headlines_df = pd.concat([current_archive, headlines_df])\
+                      .drop_duplicates(subset=['headline', 'link'])\
+                      .sort_values(by='date')\
+                      .reset_index(drop=True)
+
+# Export links and headlines. Save a dated copy in an archive directory.
+all_headlines_df.to_json('data/headlines.json', indent=4, orient='records')
+all_headlines_df.to_json(f'data/archive/headlines_{today}.json', indent=4, orient='records')
