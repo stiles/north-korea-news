@@ -31,7 +31,7 @@ The updated archive is stored in an Amazon S3 bucket at the following URL:
 
 The archive began in August 2024, so it's limited but will grow over time each day, ensuring that the latest news articles are available for analysis and research.
 
-## Sample Data Structure
+## Sample data structure
 
 The data is stored in JSON format with the following structure:
 
@@ -45,7 +45,7 @@ The data is stored in JSON format with the following structure:
 }
 ```
 
-## Getting Started
+## Getting started
 
 ### Prerequisites
 
