@@ -46,7 +46,7 @@ jobs:
           git config --local user.email "mattstiles@gmail.com"
           git config --local user.name "Matt Stiles"
           git add -A
-          git commit -m "fetch and update data" -a --allow-empty --author="stiles <stiles@users.noreply.github.com>"
+          git commit -m "bot fetched and updated data" -a --allow-empty --author="stiles <stiles@users.noreply.github.com>"
 
       - name: push changes
         run: |
