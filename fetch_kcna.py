@@ -206,7 +206,7 @@ all_headlines_df = pd.concat([current_archive, headlines_df])\
                       .reset_index(drop=True)
 
 # Export links and headlines. Save a dated copy in an archive directory.
-headlines_df['date_str'] = headlines_df['date'].astype(str)
+all_headlines_df['date_str'] = pd.to_datetime(all_headlines_df['date']).dt.strftime('%Y-%m-%d')
 
 all_headlines_df.to_json('data/headlines.json', indent=4, orient='records')
 all_headlines_df.to_json(f'data/archive/headlines_{today}.json', indent=4, orient='records')
