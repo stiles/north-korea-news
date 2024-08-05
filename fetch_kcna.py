@@ -15,9 +15,9 @@ current_archive['date'] = pd.to_datetime(current_archive['date'], errors='raise'
 
 today = pd.Timestamp.today().strftime('%Y-%m-%d')
 key_topics = [
-    "WPK General Secretary Kim Jong Un's Revolutionary Activities",
-    'Latest News', 'Top News', 'Home News', 'World',
-    'Society-Life', 'External', 'News Commentary'
+    "WPK General Secretary Kim Jong Un's Revolutionary Activities", "Documents",
+    'Latest News', 'Top News', 'Home News', 'World', "Revolutionary Anecdote",
+    'Society-Life', 'External', 'News Commentary', 'Always in Memory of People', 'Celebrations for New Year'
 ]
 
 # Retrieve the proxy service key from environment variables (GitHub Actions secrets)
@@ -109,7 +109,7 @@ def parse_articles(page_url, topic):
             for article in article_links:
                 a_tag = article.find('a')
                 if a_tag:
-                    headline = a_tag.text.strip().split('\r\n\t\t\t\t\t\t\t\r\n\t\t\t\t\t\t\t\r\n\t\t\t\t\t\t\t')[0]
+                    headline = a_tag.text.strip().split('\r')[0]
                     link = a_tag.get('href')
                     date_tag = article.find('span', class_='publish-time')
                     date = date_tag.text.strip() if date_tag else 'Unknown'
@@ -128,7 +128,7 @@ def parse_articles(page_url, topic):
                 title_span = media.find('span', class_='title')
                 if title_span:
                     a_tag = title_span.find('a')
-                    headline = a_tag.text.strip().split('\r\n\t\t\t\t\t\t\t\r\n\t\t\t\t\t\t\t\r\n\t\t\t\t\t\t\t')[0] if a_tag else 'Unknown'
+                    headline = a_tag.text.strip().split('\r')[0] if a_tag else 'Unknown'
                     link = a_tag.get('href') if a_tag else 'Unknown'
                     date_tag = title_span.find('span', class_='publish-time')
                     date = date_tag.text.strip() if date_tag else 'Unknown'
@@ -206,5 +206,10 @@ all_headlines_df = pd.concat([current_archive, headlines_df])\
                       .reset_index(drop=True)
 
 # Export links and headlines. Save a dated copy in an archive directory.
+headlines_df['date_str'] = headlines_df['date'].astype(str)
+
 all_headlines_df.to_json('data/headlines.json', indent=4, orient='records')
 all_headlines_df.to_json(f'data/archive/headlines_{today}.json', indent=4, orient='records')
+
+links_df.to_json('data/links.json', indent=4, orient='records')
+links_df.to_json(f'data/archive/links_{today}.json', indent=4, orient='records')
