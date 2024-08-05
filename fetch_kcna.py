@@ -40,7 +40,7 @@ def fetch_menu_links(url):
         params={
             'api_key': proxy_service_key,
             'url': url,
-            'premium': 'true'  # Use premium proxies for faster and more reliable performance
+            'premium': 'true'
         },
         headers=headers
     )
@@ -94,7 +94,7 @@ def parse_articles(page_url, topic):
         params={
             'api_key': proxy_service_key,
             'url': page_url,
-            'premium': 'true'  # Use premium proxies for faster and more reliable performance
+            'premium': 'true'
         },
         headers=headers
     )
@@ -155,7 +155,7 @@ def fetch_story_text(link):
         params={
             'api_key': proxy_service_key,
             'url': link,
-            'premium': 'true'  # Use premium proxies for faster and more reliable performance
+            'premium': 'true'
         },
         headers=headers
     )
