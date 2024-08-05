@@ -3,7 +3,7 @@
 
 ## Project scope
 
-This is an automated system designed to collect and archive news articles from the [Korean Central News Agency (KCNA)](http://www.kcna.kp), or 조선중앙통신. The project aims to maintain an up-to-date archive of news articles for topics of interest, such as political statements and world news. The collected data is stored in `JSON` format and is archived daily to an Amazon S3 bucket.
+This is an automated system designed to collect and archive news articles from the [Korean Central News Agency](http://www.kcna.kp/en), known as KCNA or 조선중앙통신 in North Korea. The project aims to maintain an updated archive of news articles for topics of interest, such as political statements and world news. The collected data is stored in `JSON` format and is archived daily to an Amazon S3 bucket.
 
 ## Script Overview
 
@@ -44,6 +44,9 @@ The data is stored in JSON format with the following structure:
     "story_text": "Pyongyang, July 14 (KCNA) -- Kim Yo Jong, vice department director of the Central Committee of the Workers' Party of Korea, released the following press statement on Sunday afternoon:\nToday I was informed that dirty leaflets and things of the ROK scum have been found again in the border area and some deep areas of the Democratic People's Republic of Korea.\nSimilar information was continuously reported by party organizations, military and social organizations at all levels on Sunday morning.\nAccording to the information, the rubbishes were found in 17 places in Jangphung County of North Hwanghae Province and the area adjacent to it.\nUnits of the Korean People's Army, the Worker-Peasant Red Guards, public security and state security organs at all levels near the border are now making an all-out search, throwing into fire and disposing of the found rubbishes according to the regulation of dealing with enemy-dropped objects and providing against the possibility to find such things in addition.\nDespite the repeated warnings of the DPRK, the ROK scum are not stopping this crude and dirty play.\nAs already warned, the scum, who are resorting to do this play, will be more strongly criticized by their people.\nWe have fully introduced our countermeasure in such situation.\nThe ROK clans will be tired from suffering a bitter embarrassment and must be ready for paying a very high price for their dirty play. -0-"
 }
 ```
+
+The topics, which are pulled unedited from the site, include: `WPK General Secretary Kim Jong Un's Revolutionary Activities`, `Revolutionary Anecdote`,`Always in Memory of People`,`Latest News`,`Top News`,`Home News`,`Documents`,`World`,`Society-Life`,`External`,`Celebrations for New Year`,`News Commentary`,`Photo` and `Video`.
+
 
 ## Getting started
 
