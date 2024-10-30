@@ -62,27 +62,74 @@ def fetch_menu_links(url):
         print(f"Failed to retrieve the menu page. Status code: {response.status_code}")
         return pd.DataFrame()
 
-# Function to convert Juche date to Gregorian date
-def convert_juche_to_gregorian(juche_date):
-    if juche_date is None or juche_date == 'Unknown':
-        return 'Unknown'
+# Revised function to distinguish between Juche and Gregorian dates
+# def convert_juche_to_gregorian(juche_date):
+#     if juche_date is None or juche_date == 'Unknown':
+#         return pd.NaT
+    
+#     try:
+#         # Check if date starts with "Juche" to identify Juche format
+#         if "Juche" in juche_date:
+#             clean_date = juche_date.replace('[', '').replace(']', '')
+#             parts = clean_date.split('.')
+            
+#             # Extract Juche year
+#             juche_year = int(parts[0].replace('Juche', '').strip())
+#             month = int(parts[1])
+#             day = int(parts[2])
+
+#             # Convert Juche year to Gregorian year
+#             gregorian_year = juche_year + 1911
+#         else:
+#             # Treat as Gregorian date
+#             parts = juche_date.split('.')
+#             gregorian_year = int(parts[0])
+#             month = int(parts[1])
+#             day = int(parts[2])
+
+#         # Print for debugging purposes
+#         print(f"Converting date: {juche_date} => Year: {gregorian_year}, Month: {month}, Day: {day}")
+
+#         # Validate date range
+#         if not (1900 <= gregorian_year <= datetime.now().year):
+#             print(f"Out of bounds date: {gregorian_year}-{month}-{day}")
+#             return pd.NaT
+
+#         return datetime(gregorian_year, month, day)
+
+#     except Exception as e:
+#         print(f"Error converting date: {juche_date} - {e}")
+#         return pd.NaT
+
+def convert_to_gregorian(date_str):
+    if date_str is None or date_str == 'Unknown':
+        return pd.NaT
     
     try:
         # Clean the date string by removing brackets
-        clean_date = juche_date.replace('[', '').replace(']', '')
+        clean_date = date_str.replace('[', '').replace(']', '')
         
+        # Split the date into year, month, and day
         parts = clean_date.split('.')
-        juche_year = int(parts[0].replace('Juche', '').strip())
+        year = int(parts[0])
         month = int(parts[1])
         day = int(parts[2])
 
-        gregorian_year = juche_year + 1911
-        gregorian_date = datetime(gregorian_year, month, day).strftime('%Y-%m-%d')
+        # Debug print for verification
+        print(f"Converting date: {date_str} => Year: {year}, Month: {month}, Day: {day}")
 
-        return gregorian_date
+        # Ensure the date falls within a reasonable range
+        if not (1900 <= year <= datetime.now().year):
+            print(f"Out of bounds date: {year}-{month}-{day}")
+            return pd.NaT
+
+        return datetime(year, month, day)
+
     except Exception as e:
-        print(f"Error converting date: {juche_date} - {e}")
-        return 'Unknown'
+        print(f"Error converting date: {date_str} - {e}")
+        return pd.NaT
+
+
 
 # Function to parse articles and media from topic pages
 def parse_articles(page_url, topic):
@@ -118,7 +165,7 @@ def parse_articles(page_url, topic):
                         'topic': topic,
                         'headline': headline,
                         'link': full_link,
-                        'date': convert_juche_to_gregorian(date)
+                        'date': convert_to_gregorian(date)
                     })
 
         # Extract photos and videos
@@ -137,7 +184,7 @@ def parse_articles(page_url, topic):
                         'topic': topic,
                         'headline': headline,
                         'link': full_link,
-                        'date': convert_juche_to_gregorian(date)
+                        'date': convert_to_gregorian(date)
                     })
 
     else:
@@ -195,6 +242,8 @@ def collect_headlines_and_stories(links_df):
 menu_url = 'http://www.kcna.kp/en'  # Replace with the actual URL of the menu page
 links_df = fetch_menu_links(menu_url)
 headlines_df = collect_headlines_and_stories(links_df)
+
+print("Unique dates before conversion:", headlines_df['date'].unique())
 
 # Convert date column in headlines_df to datetime
 headlines_df['date'] = pd.to_datetime(headlines_df['date'], errors='raise')
