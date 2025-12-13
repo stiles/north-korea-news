@@ -1,8 +1,11 @@
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 from bs4 import BeautifulSoup
 import pandas as pd
 import random
 import os
+import time
 from datetime import datetime
 from tqdm import tqdm
 
@@ -30,37 +33,75 @@ user_agents = [
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Firefox/78.0',
 ]
 
+# Create a session with retry strategy
+def create_session_with_retries():
+    """Create a requests session with automatic retry logic for transient failures"""
+    session = requests.Session()
+    
+    # Configure retry strategy
+    retry_strategy = Retry(
+        total=5,  # Total number of retries
+        backoff_factor=2,  # Wait 1s, 2s, 4s, 8s, 16s between retries
+        status_forcelist=[429, 500, 502, 503, 504],  # HTTP status codes to retry
+        allowed_methods=["HEAD", "GET", "OPTIONS"],  # Methods to retry
+        raise_on_status=False  # Don't raise exception on max retries
+    )
+    
+    adapter = HTTPAdapter(max_retries=retry_strategy, pool_connections=10, pool_maxsize=10)
+    session.mount("http://", adapter)
+    session.mount("https://", adapter)
+    
+    return session
+
+# Create global session for all requests
+session = create_session_with_retries()
+
 # Function to fetch the menu links
-def fetch_menu_links(url):
+def fetch_menu_links(url, max_attempts=3):
     headers = {
         'User-Agent': random.choice(user_agents)
     }
-    response = requests.get(
-        'https://proxy.scrapeops.io/v1/',
-        params={
-            'api_key': proxy_service_key,
-            'url': url,
-            'premium': 'true'
-        },
-        headers=headers
-    )
-    if response.status_code == 200:
-        soup = BeautifulSoup(response.content, 'html.parser')
-        menu_block = soup.find('div', class_='col-md-12 menu-block')
-        links_data = []
+    
+    for attempt in range(max_attempts):
+        try:
+            response = session.get(
+                'https://proxy.scrapeops.io/v1/',
+                params={
+                    'api_key': proxy_service_key,
+                    'url': url,
+                    'premium': 'true'
+                },
+                headers=headers,
+                timeout=30
+            )
+            
+            if response.status_code == 200:
+                soup = BeautifulSoup(response.content, 'html.parser')
+                menu_block = soup.find('div', class_='col-md-12 menu-block')
+                links_data = []
 
-        if menu_block:
-            links = menu_block.find_all('a')
-            for link in links:
-                topic = link.text.strip()
-                link_url = link.get('href')
-                full_url = f"http://www.kcna.kp{link_url}"  # Construct the full URL
-                links_data.append({'topic': topic, 'link': full_url})
+                if menu_block:
+                    links = menu_block.find_all('a')
+                    for link in links:
+                        topic = link.text.strip()
+                        link_url = link.get('href')
+                        full_url = f"http://www.kcna.kp{link_url}"
+                        links_data.append({'topic': topic, 'link': full_url})
 
-        return pd.DataFrame(links_data)
-    else:
-        print(f"Failed to retrieve the menu page. Status code: {response.status_code}")
-        return pd.DataFrame()
+                return pd.DataFrame(links_data)
+            else:
+                print(f"Failed to retrieve menu page. Status code: {response.status_code}")
+                if attempt < max_attempts - 1:
+                    time.sleep(5 * (attempt + 1))
+                    
+        except Exception as e:
+            print(f"Error fetching menu links (attempt {attempt + 1}/{max_attempts}): {e}")
+            if attempt < max_attempts - 1:
+                time.sleep(5 * (attempt + 1))
+            else:
+                print("Max attempts reached for menu links")
+    
+    return pd.DataFrame()
 
 # Revised function to distinguish between Juche and Gregorian dates
 # def convert_juche_to_gregorian(juche_date):
@@ -132,87 +173,123 @@ def convert_to_gregorian(date_str):
 
 
 # Function to parse articles and media from topic pages
-def parse_articles(page_url, topic):
+def parse_articles(page_url, topic, max_attempts=3):
     headers = {
         'User-Agent': random.choice(user_agents)
     }
-    response = requests.get(
-        'https://proxy.scrapeops.io/v1/',
-        params={
-            'api_key': proxy_service_key,
-            'url': page_url,
-            'premium': 'true'
-        },
-        headers=headers
-    )
-    articles = []
-    if response.status_code == 200:
-        soup = BeautifulSoup(response.content, 'html.parser')
+    
+    for attempt in range(max_attempts):
+        try:
+            response = session.get(
+                'https://proxy.scrapeops.io/v1/',
+                params={
+                    'api_key': proxy_service_key,
+                    'url': page_url,
+                    'premium': 'true'
+                },
+                headers=headers,
+                timeout=30
+            )
+            
+            articles = []
+            if response.status_code == 200:
+                soup = BeautifulSoup(response.content, 'html.parser')
 
-        # Extract articles
-        article_lists = soup.find_all('ul', class_='article-link')
-        for article_list in article_lists:
-            article_links = article_list.find_all('li')[:5]  # Limit to first 5 articles
-            for article in article_links:
-                a_tag = article.find('a')
-                if a_tag:
-                    headline = a_tag.text.strip().split('\r')[0]
-                    link = a_tag.get('href')
-                    date_tag = article.find('span', class_='publish-time')
-                    date = date_tag.text.strip() if date_tag else 'Unknown'
-                    full_link = f"http://www.kcna.kp{link}"
-                    articles.append({
-                        'topic': topic,
-                        'headline': headline,
-                        'link': full_link,
-                        'date': convert_to_gregorian(date)
-                    })
+                # Extract articles
+                article_lists = soup.find_all('ul', class_='article-link')
+                for article_list in article_lists:
+                    article_links = article_list.find_all('li')[:5]  # Limit to first 5 articles
+                    for article in article_links:
+                        a_tag = article.find('a')
+                        if a_tag:
+                            headline = a_tag.text.strip().split('\r')[0]
+                            link = a_tag.get('href')
+                            date_tag = article.find('span', class_='publish-time')
+                            date = date_tag.text.strip() if date_tag else 'Unknown'
+                            full_link = f"http://www.kcna.kp{link}"
+                            articles.append({
+                                'topic': topic,
+                                'headline': headline,
+                                'link': full_link,
+                                'date': convert_to_gregorian(date)
+                            })
 
-        # Extract photos and videos
-        if topic in ['Photo', 'Video']:
-            media_divs = soup.find_all('div', class_=['photo', 'video'])
-            for media in media_divs[:5]:  # Limit to first 5 items
-                title_span = media.find('span', class_='title')
-                if title_span:
-                    a_tag = title_span.find('a')
-                    headline = a_tag.text.strip().split('\r')[0] if a_tag else 'Unknown'
-                    link = a_tag.get('href') if a_tag else 'Unknown'
-                    date_tag = title_span.find('span', class_='publish-time')
-                    date = date_tag.text.strip() if date_tag else 'Unknown'
-                    full_link = f"http://www.kcna.kp{link}"
-                    articles.append({
-                        'topic': topic,
-                        'headline': headline,
-                        'link': full_link,
-                        'date': convert_to_gregorian(date)
-                    })
+                # Extract photos and videos
+                if topic in ['Photo', 'Video']:
+                    media_divs = soup.find_all('div', class_=['photo', 'video'])
+                    for media in media_divs[:5]:  # Limit to first 5 items
+                        title_span = media.find('span', class_='title')
+                        if title_span:
+                            a_tag = title_span.find('a')
+                            headline = a_tag.text.strip().split('\r')[0] if a_tag else 'Unknown'
+                            link = a_tag.get('href') if a_tag else 'Unknown'
+                            date_tag = title_span.find('span', class_='publish-time')
+                            date = date_tag.text.strip() if date_tag else 'Unknown'
+                            full_link = f"http://www.kcna.kp{link}"
+                            articles.append({
+                                'topic': topic,
+                                'headline': headline,
+                                'link': full_link,
+                                'date': convert_to_gregorian(date)
+                            })
 
-    else:
-        print(f"Failed to retrieve the topic page: {page_url}. Status code: {response.status_code}")
+                return articles
+            else:
+                print(f"Failed to retrieve topic page: {page_url}. Status code: {response.status_code}")
+                if attempt < max_attempts - 1:
+                    time.sleep(3 * (attempt + 1))
+                    
+        except Exception as e:
+            print(f"Error parsing articles from {page_url} (attempt {attempt + 1}/{max_attempts}): {e}")
+            if attempt < max_attempts - 1:
+                time.sleep(3 * (attempt + 1))
+            else:
+                print(f"Max attempts reached for {page_url}, skipping")
 
-    return articles
+    return []
 
 # Function to extract story text from article links
-def fetch_story_text(link):
+def fetch_story_text(link, max_attempts=3):
     headers = {
         'User-Agent': random.choice(user_agents)
     }
-    response = requests.get(
-        'https://proxy.scrapeops.io/v1/',
-        params={
-            'api_key': proxy_service_key,
-            'url': link,
-            'premium': 'true'
-        },
-        headers=headers
-    )
-    if response.status_code == 200:
-        soup = BeautifulSoup(response.content, 'html.parser')
-        content_wrapper = soup.find('div', class_='content-wrapper')
-        if content_wrapper:
-            paragraphs = content_wrapper.find_all('p')
-            story_text = "\n".join(p.get_text(strip=True) for p in paragraphs)
-            return story_text
+    
+    for attempt in range(max_attempts):
+        try:
+            # Add small delay between requests to avoid overwhelming the proxy
+            time.sleep(0.5)
+            
+            response = session.get(
+                'https://proxy.scrapeops.io/v1/',
+                params={
+                    'api_key': proxy_service_key,
+                    'url': link,
+                    'premium': 'true'
+                },
+                headers=headers,
+                timeout=30
+            )
+            
+            if response.status_code == 200:
+                soup = BeautifulSoup(response.content, 'html.parser')
+                content_wrapper = soup.find('div', class_='content-wrapper')
+                if content_wrapper:
+                    paragraphs = content_wrapper.find_all('p')
+                    story_text = "\n".join(p.get_text(strip=True) for p in paragraphs)
+                    return story_text
+                return ''
+            else:
+                print(f"Failed to fetch story text. Status code: {response.status_code}")
+                if attempt < max_attempts - 1:
+                    time.sleep(3 * (attempt + 1))
+                    
+        except Exception as e:
+            print(f"Error fetching story text (attempt {attempt + 1}/{max_attempts}): {e}")
+            if attempt < max_attempts - 1:
+                time.sleep(3 * (attempt + 1))
+            else:
+                print(f"Max attempts reached for {link}, returning empty string")
+    
     return ''
 
 # Function to collect headlines and fetch story text
